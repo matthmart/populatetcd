@@ -1,0 +1,6 @@
+package: webup/populatetcd
+import:
+- package: github.com/docker/engine-api
+- package: github.com/docker/go-connections
+  subpackages:
+  - nat

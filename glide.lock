@@ -1,0 +1,43 @@
+hash: c4fc66cdaaae87980077063e88dd7bacf282b8190921cbeb2eaeb188f3070de7
+updated: 2016-03-25T18:39:15.023670961+01:00
+imports:
+- name: github.com/docker/engine-api
+  version: 36796384e864f4b6746e24aacc02080e465b9392
+  subpackages:
+  - client
+  - types
+  - client/transport
+  - client/transport/cancellable
+  - types/container
+  - types/filters
+  - types/network
+  - types/registry
+  - types/time
+  - types/blkiodev
+  - types/strslice
+- name: github.com/docker/go-connections
+  version: f549a9393d05688dff0992ef3efd8bbe6c628aeb
+  subpackages:
+  - nat
+  - sockets
+  - tlsconfig
+- name: github.com/docker/go-units
+  version: 5d2041e26a699eaca682e2ea41c8f891e1060444
+- name: github.com/Microsoft/go-winio
+  version: 8f9387ea7efabb228a981b9c381142be7667967f
+- name: github.com/opencontainers/runc
+  version: 344b0ccaa643d00ea29e560c982477d6d4675be8
+  subpackages:
+  - libcontainer/user
+- name: github.com/Sirupsen/logrus
+  version: 4b6ea7319e214d98c938f12692336f7ca9348d6b
+- name: golang.org/x/net
+  version: 991d3e32f76f19ee6d9caadb3a22eae8d23315f7
+  subpackages:
+  - context
+  - proxy
+- name: golang.org/x/sys
+  version: 320cb01ddbbf0473674c2585f9b6e245721de355
+  subpackages:
+  - unix
+devImports: []
