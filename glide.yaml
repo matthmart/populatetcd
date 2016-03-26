@@ -4,3 +4,6 @@ import:
 - package: github.com/docker/go-connections
   subpackages:
   - nat
+- package: github.com/coreos/etcd
+  subpackages:
+  - client

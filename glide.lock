@@ -1,15 +1,19 @@
-hash: c4fc66cdaaae87980077063e88dd7bacf282b8190921cbeb2eaeb188f3070de7
-updated: 2016-03-25T18:39:15.023670961+01:00
+hash: 58df57c55a8a62519e66f3592e14f1c30968dfda01c0bda86f8f3c886cd6f9ae
+updated: 2016-03-25T23:59:14.585182731+01:00
 imports:
+- name: github.com/coreos/etcd
+  version: 36db6cd9826638e611586c0c2fdb8a0d09085e84
+  subpackages:
+  - client
 - name: github.com/docker/engine-api
   version: 36796384e864f4b6746e24aacc02080e465b9392
   subpackages:
   - client
   - types
+  - types/filters
   - client/transport
   - client/transport/cancellable
   - types/container
-  - types/filters
   - types/network
   - types/registry
   - types/time
@@ -32,7 +36,7 @@ imports:
 - name: github.com/Sirupsen/logrus
   version: 4b6ea7319e214d98c938f12692336f7ca9348d6b
 - name: golang.org/x/net
-  version: 991d3e32f76f19ee6d9caadb3a22eae8d23315f7
+  version: 1600a4cd699d70009ec28edfd69d3568f6bd757d
   subpackages:
   - context
   - proxy
