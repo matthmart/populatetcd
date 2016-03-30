@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"sync"
+	"os/signal"
 	"time"
 
 	"golang.org/x/net/context"
@@ -17,77 +17,80 @@ import (
 )
 
 func main() {
-	var wg sync.WaitGroup
-
-	wg.Add(1)
 
 	go func() {
+		sigchan := make(chan os.Signal, 1)
+		signal.Notify(sigchan, os.Interrupt)
+		<-sigchan
+		log.Println("Program killed !")
 
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		// do last actions and wait for all write operations to end
 
-		cli, err := client.NewEnvClient()
-		if err != nil {
-			log.Fatal(err)
-		}
-		fmt.Println("Docker API connection OK.")
-
-		cfg := etcd.Config{
-			Endpoints: []string{"http://192.168.99.100:2379"},
-			Transport: etcd.DefaultTransport,
-			// set timeout per request to fail fast when the target endpoint is unavailable
-			HeaderTimeoutPerRequest: time.Second,
-		}
-		c, err := etcd.New(cfg)
-		if err != nil {
-			log.Fatal(err)
-		}
-		kapi := etcd.NewKeysAPI(c)
-		fmt.Println("etcd API connection OK.")
-
-		filters := filters.NewArgs()
-		filters.Add("type", "network")
-		// filters.Add("network", "hae_default")
-
-		options := types.EventsOptions{Filters: filters}
-		reader, err := cli.Events(ctx, options)
-		if err != nil {
-			log.Fatal(err)
-		}
-		defer reader.Close()
-
-		fmt.Println("Listening for events...")
-
-		scanner := bufio.NewScanner(reader)
-		for scanner.Scan() {
-
-			fmt.Println(scanner.Text())
-
-			updateConfig(cli, ctx, kapi)
-
-			// data := new(events.Message)
-			// json.Unmarshal(scanner.Bytes(), data)
-
-			// containerID := data.Actor.Attributes["container"]
-			// fmt.Printf("Network state changed for %v\n", containerID)
-			//
-			// containerInfo, err := cli.ContainerInspect(ctx, containerID)
-			// if err != nil {
-			// 	fmt.Fprintln(os.Stderr, "Inspect error", err)
-			// }
-			//
-			// fmt.Println("## Infos ##")
-			// fmt.Println("  name: ", containerInfo.Name)
-			// fmt.Println("  labels: ", containerInfo.Config.Labels)
-
-		}
-		if err := scanner.Err(); err != nil {
-			fmt.Fprintln(os.Stderr, "There was an error with the scanner", err)
-		}
-
+		os.Exit(0)
 	}()
 
-	wg.Wait()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	cli, err := client.NewEnvClient()
+	if err != nil {
+		log.Fatal(err)
+	}
+	fmt.Println("Docker API connection OK.")
+
+	cfg := etcd.Config{
+		Endpoints: []string{"http://192.168.99.100:2379"},
+		Transport: etcd.DefaultTransport,
+		// set timeout per request to fail fast when the target endpoint is unavailable
+		HeaderTimeoutPerRequest: time.Second,
+	}
+	c, err := etcd.New(cfg)
+	if err != nil {
+		log.Fatal(err)
+	}
+	kapi := etcd.NewKeysAPI(c)
+	fmt.Println("etcd API connection OK.")
+
+	filters := filters.NewArgs()
+	filters.Add("type", "network")
+	// filters.Add("network", "hae_default")
+
+	options := types.EventsOptions{Filters: filters}
+	reader, err := cli.Events(ctx, options)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer reader.Close()
+
+	fmt.Println("Listening for events...")
+
+	scanner := bufio.NewScanner(reader)
+	for scanner.Scan() {
+
+		fmt.Println(scanner.Text())
+
+		updateConfig(cli, ctx, kapi)
+
+		// data := new(events.Message)
+		// json.Unmarshal(scanner.Bytes(), data)
+
+		// containerID := data.Actor.Attributes["container"]
+		// fmt.Printf("Network state changed for %v\n", containerID)
+		//
+		// containerInfo, err := cli.ContainerInspect(ctx, containerID)
+		// if err != nil {
+		// 	fmt.Fprintln(os.Stderr, "Inspect error", err)
+		// }
+		//
+		// fmt.Println("## Infos ##")
+		// fmt.Println("  name: ", containerInfo.Name)
+		// fmt.Println("  labels: ", containerInfo.Config.Labels)
+
+	}
+	if err := scanner.Err(); err != nil {
+		fmt.Fprintln(os.Stderr, "There was an error with the scanner", err)
+	}
+
 }
 
 func updateConfig(cli *client.Client, ctx context.Context, kapi etcd.KeysAPI) {
