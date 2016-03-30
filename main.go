@@ -93,18 +93,21 @@ func main() {
 func updateConfig(cli *client.Client, ctx context.Context, kapi etcd.KeysAPI) {
 
 	filters := filters.NewArgs()
-	filters.Add("label", "com.docker.compose.service=proxy")
+	// filters.Add("label", "com.docker.compose.project=hae")
 
 	containers, err := cli.ContainerList(ctx, types.ContainerListOptions{Filter: filters})
 	if err != nil {
 		log.Fatal(err)
 	}
-	fmt.Println(containers)
+	// fmt.Println(containers)
 
 	// clear content
 	kapi.Delete(ctx, "/subproxies", &etcd.DeleteOptions{Recursive: true})
 
 	for _, container := range containers {
-		kapi.Set(ctx, "/subproxies"+container.Names[0], "mokay", nil)
+		if hosts, ok := container.Labels["proxy.domain_names"]; ok {
+			fmt.Println(hosts)
+			kapi.Set(ctx, "/subproxies"+container.Names[0]+"/hosts", hosts, nil)
+		}
 	}
 }
