@@ -1,10 +1,12 @@
-hash: 58df57c55a8a62519e66f3592e14f1c30968dfda01c0bda86f8f3c886cd6f9ae
-updated: 2016-03-25T23:59:14.585182731+01:00
+hash: 4cf1f8470371df0d8fef5cf7f76392514e5f73b87d06f3cea4a6d558517dc0d7
+updated: 2016-03-31T15:16:59.084233942+02:00
 imports:
 - name: github.com/coreos/etcd
   version: 36db6cd9826638e611586c0c2fdb8a0d09085e84
   subpackages:
   - client
+  - pkg/pathutil
+  - pkg/types
 - name: github.com/docker/engine-api
   version: 36796384e864f4b6746e24aacc02080e465b9392
   subpackages:
@@ -27,6 +29,8 @@ imports:
   - tlsconfig
 - name: github.com/docker/go-units
   version: 5d2041e26a699eaca682e2ea41c8f891e1060444
+- name: github.com/jawher/mow.cli
+  version: 772320464101e904cd51198160eb4d489be9cc49
 - name: github.com/Microsoft/go-winio
   version: 8f9387ea7efabb228a981b9c381142be7667967f
 - name: github.com/opencontainers/runc
@@ -35,13 +39,21 @@ imports:
   - libcontainer/user
 - name: github.com/Sirupsen/logrus
   version: 4b6ea7319e214d98c938f12692336f7ca9348d6b
+- name: github.com/ugorji/go
+  version: f1f1a805ed361a0e078bb537e4ea78cd37dcf065
+  subpackages:
+  - codec
 - name: golang.org/x/net
-  version: 1600a4cd699d70009ec28edfd69d3568f6bd757d
+  version: 6acef71eb69611914f7a30939ea9f6e194c78172
   subpackages:
   - context
+  - http2
+  - http2/hpack
+  - internal/timeseries
+  - trace
   - proxy
 - name: golang.org/x/sys
-  version: 320cb01ddbbf0473674c2585f9b6e245721de355
+  version: 9c60d1c508f5134d1ca726b4641db998f2523357
   subpackages:
   - unix
 devImports: []

@@ -14,48 +14,52 @@ import (
 	"github.com/docker/engine-api/client"
 	"github.com/docker/engine-api/types"
 	"github.com/docker/engine-api/types/filters"
+	"github.com/jawher/mow.cli"
 )
 
 func main() {
 
-	go func() {
-		sigchan := make(chan os.Signal, 1)
-		signal.Notify(sigchan, os.Interrupt)
-		<-sigchan
-		log.Println("Program killed !")
+	app := cli.App("populatetcd", "Update etcd according to containers labels")
 
-		// do last actions and wait for all write operations to end
+	daemon := app.BoolOpt("d daemon", false, "Run populatetcd in daemon mode, listening docker events")
 
-		os.Exit(0)
-	}()
+	app.Action = func() {
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
 
-	dockerCli, err := client.NewEnvClient()
-	if err != nil {
-		log.Fatal(err)
+		dockerCli, err := client.NewEnvClient()
+		if err != nil {
+			log.Fatal(err)
+		}
+		log.Println("Docker API connection OK.")
+
+		cfg := etcd.Config{
+			Endpoints: []string{"http://192.168.99.100:2379"},
+			Transport: etcd.DefaultTransport,
+			// set timeout per request to fail fast when the target endpoint is unavailable
+			HeaderTimeoutPerRequest: time.Second,
+		}
+		c, err := etcd.New(cfg)
+		if err != nil {
+			log.Fatal(err)
+		}
+		etcdCli := etcd.NewKeysAPI(c)
+		log.Println("etcd API connection OK.")
+
+		if *daemon {
+			done := make(chan bool, 1)
+			go listenForEvents(done, ctx, dockerCli, etcdCli)
+			<-done
+		} else {
+			updateConfig(ctx, dockerCli, etcdCli)
+		}
 	}
-	fmt.Println("Docker API connection OK.")
 
-	cfg := etcd.Config{
-		Endpoints: []string{"http://192.168.99.100:2379"},
-		Transport: etcd.DefaultTransport,
-		// set timeout per request to fail fast when the target endpoint is unavailable
-		HeaderTimeoutPerRequest: time.Second,
-	}
-	c, err := etcd.New(cfg)
-	if err != nil {
-		log.Fatal(err)
-	}
-	etcdCli := etcd.NewKeysAPI(c)
-	fmt.Println("etcd API connection OK.")
-
-	// updateConfig(ctx, dockerCli, etcdCli)
-	listenForEvents(ctx, dockerCli, etcdCli)
+	app.Run(os.Args)
 }
 
-func listenForEvents(ctx context.Context, dockerCli *client.Client, etcdCli etcd.KeysAPI) {
+func listenForEvents(done chan<- bool, ctx context.Context, dockerCli *client.Client, etcdCli etcd.KeysAPI) {
 	filters := filters.NewArgs()
 	filters.Add("type", "network")
 	filters.Add("event", "connect")
@@ -67,36 +71,51 @@ func listenForEvents(ctx context.Context, dockerCli *client.Client, etcdCli etcd
 	if err != nil {
 		log.Fatal(err)
 	}
-	defer reader.Close()
 
-	fmt.Println("Listening for events...")
+	log.Printf("Listening for events...\n\n")
 
-	scanner := bufio.NewScanner(reader)
-	for scanner.Scan() {
+	// handle the SIGINT signal
+	listening := make(chan os.Signal, 1)
+	signal.Notify(listening, os.Interrupt)
 
-		fmt.Println(scanner.Text())
+	go func(listening chan os.Signal) {
+		scanner := bufio.NewScanner(reader)
+		for scanner.Scan() {
 
-		updateConfig(ctx, dockerCli, etcdCli)
+			// fmt.Println(scanner.Text())
+			// log.Println("Network event received.")
 
-		// data := new(events.Message)
-		// json.Unmarshal(scanner.Bytes(), data)
+			updateConfig(ctx, dockerCli, etcdCli)
 
-		// containerID := data.Actor.Attributes["container"]
-		// fmt.Printf("Network state changed for %v\n", containerID)
-		//
-		// containerInfo, err := cli.ContainerInspect(ctx, containerID)
-		// if err != nil {
-		// 	fmt.Fprintln(os.Stderr, "Inspect error", err)
-		// }
-		//
-		// fmt.Println("## Infos ##")
-		// fmt.Println("  name: ", containerInfo.Name)
-		// fmt.Println("  labels: ", containerInfo.Config.Labels)
+			// data := new(events.Message)
+			// json.Unmarshal(scanner.Bytes(), data)
 
-	}
-	if err := scanner.Err(); err != nil {
-		fmt.Fprintln(os.Stderr, "There was an error with the scanner", err)
-	}
+			// containerID := data.Actor.Attributes["container"]
+			// fmt.Printf("Network state changed for %v\n", containerID)
+			//
+			// containerInfo, err := cli.ContainerInspect(ctx, containerID)
+			// if err != nil {
+			// 	fmt.Fprintln(os.Stderr, "Inspect error", err)
+			// }
+			//
+			// fmt.Println("## Infos ##")
+			// fmt.Println("  name: ", containerInfo.Name)
+			// fmt.Println("  labels: ", containerInfo.Config.Labels)
+
+		}
+
+		// handling scanner error
+		if err := scanner.Err(); err != nil {
+			fmt.Println("There was an error with the scanner", err)
+			listening <- os.Interrupt
+		}
+	}(listening)
+
+	// waiting for events
+	<-listening
+
+	reader.Close()
+	done <- true
 }
 
 func updateConfig(ctx context.Context, dockerCli *client.Client, etcdCli etcd.KeysAPI) {
@@ -115,8 +134,10 @@ func updateConfig(ctx context.Context, dockerCli *client.Client, etcdCli etcd.Ke
 
 	for _, container := range containers {
 		if hosts, ok := container.Labels["proxy.domain_names"]; ok {
-			fmt.Println(hosts)
+			log.Println(container.Names[0], " domain_names: ", hosts)
 			etcdCli.Set(ctx, "/subproxies"+container.Names[0]+"/hosts", hosts, nil)
 		}
 	}
+
+	log.Println("etcd updated.")
 }
