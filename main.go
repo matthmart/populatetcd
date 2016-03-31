@@ -32,7 +32,7 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	cli, err := client.NewEnvClient()
+	dockerCli, err := client.NewEnvClient()
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -48,20 +48,20 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	kapi := etcd.NewKeysAPI(c)
+	etcdCli := etcd.NewKeysAPI(c)
 	fmt.Println("etcd API connection OK.")
 
-	// updateConfig(ctx, cli, kapi)
-	listenForEvents(ctx, cli, kapi)
+	// updateConfig(ctx, dockerCli, etcdCli)
+	listenForEvents(ctx, dockerCli, etcdCli)
 }
 
-func listenForEvents(ctx context.Context, cli *client.Client, kapi etcd.KeysAPI) {
+func listenForEvents(ctx context.Context, dockerCli *client.Client, etcdCli etcd.KeysAPI) {
 	filters := filters.NewArgs()
 	filters.Add("type", "network")
 	// filters.Add("network", "hae_default")
 
 	options := types.EventsOptions{Filters: filters}
-	reader, err := cli.Events(ctx, options)
+	reader, err := dockerCli.Events(ctx, options)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -74,7 +74,7 @@ func listenForEvents(ctx context.Context, cli *client.Client, kapi etcd.KeysAPI)
 
 		fmt.Println(scanner.Text())
 
-		updateConfig(ctx, cli, kapi)
+		updateConfig(ctx, dockerCli, etcdCli)
 
 		// data := new(events.Message)
 		// json.Unmarshal(scanner.Bytes(), data)
@@ -97,24 +97,24 @@ func listenForEvents(ctx context.Context, cli *client.Client, kapi etcd.KeysAPI)
 	}
 }
 
-func updateConfig(ctx context.Context, cli *client.Client, kapi etcd.KeysAPI) {
+func updateConfig(ctx context.Context, dockerCli *client.Client, etcdCli etcd.KeysAPI) {
 
 	filters := filters.NewArgs()
 	// filters.Add("label", "com.docker.compose.project=hae")
 
-	containers, err := cli.ContainerList(ctx, types.ContainerListOptions{Filter: filters})
+	containers, err := dockerCli.ContainerList(ctx, types.ContainerListOptions{Filter: filters})
 	if err != nil {
 		log.Println("Unable to fetch containers: ", err)
 		return
 	}
 
 	// clear content
-	kapi.Delete(ctx, "/subproxies", &etcd.DeleteOptions{Recursive: true})
+	etcdCli.Delete(ctx, "/subproxies", &etcd.DeleteOptions{Recursive: true})
 
 	for _, container := range containers {
 		if hosts, ok := container.Labels["proxy.domain_names"]; ok {
 			fmt.Println(hosts)
-			kapi.Set(ctx, "/subproxies"+container.Names[0]+"/hosts", hosts, nil)
+			etcdCli.Set(ctx, "/subproxies"+container.Names[0]+"/hosts", hosts, nil)
 		}
 	}
 }
