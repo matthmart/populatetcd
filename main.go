@@ -58,6 +58,8 @@ func main() {
 func listenForEvents(ctx context.Context, dockerCli *client.Client, etcdCli etcd.KeysAPI) {
 	filters := filters.NewArgs()
 	filters.Add("type", "network")
+	filters.Add("event", "connect")
+	filters.Add("event", "disconnect")
 	// filters.Add("network", "hae_default")
 
 	options := types.EventsOptions{Filters: filters}
