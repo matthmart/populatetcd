@@ -51,6 +51,11 @@ func main() {
 	kapi := etcd.NewKeysAPI(c)
 	fmt.Println("etcd API connection OK.")
 
+	// updateConfig(ctx, cli, kapi)
+	listenForEvents(ctx, cli, kapi)
+}
+
+func listenForEvents(ctx context.Context, cli *client.Client, kapi etcd.KeysAPI) {
 	filters := filters.NewArgs()
 	filters.Add("type", "network")
 	// filters.Add("network", "hae_default")
@@ -69,7 +74,7 @@ func main() {
 
 		fmt.Println(scanner.Text())
 
-		updateConfig(cli, ctx, kapi)
+		updateConfig(ctx, cli, kapi)
 
 		// data := new(events.Message)
 		// json.Unmarshal(scanner.Bytes(), data)
@@ -90,19 +95,18 @@ func main() {
 	if err := scanner.Err(); err != nil {
 		fmt.Fprintln(os.Stderr, "There was an error with the scanner", err)
 	}
-
 }
 
-func updateConfig(cli *client.Client, ctx context.Context, kapi etcd.KeysAPI) {
+func updateConfig(ctx context.Context, cli *client.Client, kapi etcd.KeysAPI) {
 
 	filters := filters.NewArgs()
 	// filters.Add("label", "com.docker.compose.project=hae")
 
 	containers, err := cli.ContainerList(ctx, types.ContainerListOptions{Filter: filters})
 	if err != nil {
-		log.Fatal(err)
+		log.Println("Unable to fetch containers: ", err)
+		return
 	}
-	// fmt.Println(containers)
 
 	// clear content
 	kapi.Delete(ctx, "/subproxies", &etcd.DeleteOptions{Recursive: true})
