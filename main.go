@@ -2,11 +2,14 @@ package main
 
 import (
 	"bufio"
+	"encoding/json"
 	"fmt"
 	"log"
 	"os"
 	"os/signal"
+	"strings"
 	"time"
+	"webup/populatetcd/utils"
 
 	"golang.org/x/net/context"
 
@@ -17,13 +20,24 @@ import (
 	"github.com/jawher/mow.cli"
 )
 
+type containerConfig struct {
+	DomainNames string `json:"domain_names"`
+}
+
 func main() {
 
 	app := cli.App("populatetcd", "Update etcd according to containers labels")
 
-	app.Spec = "[-d|--daemon]"
+	app.Spec = "[-d|--daemon [--interval]] --etcd"
 
 	daemon := app.BoolOpt("d daemon", false, "Run populatetcd in daemon mode, listening docker events")
+	pollingInterval := app.IntOpt("interval", 10, "Polling interval (in seconds) when running in daemon mode")
+	etcdEndpoints := app.String(cli.StringOpt{
+		Name:   "etcd",
+		Value:  "http://localhost:2379",
+		Desc:   "Endpoints for etcd (separated by a comma)",
+		EnvVar: "ETCD_ADVERTISE_URLS",
+	})
 
 	app.Action = func() {
 
@@ -44,7 +58,7 @@ func main() {
 		log.Println("Docker API connection OK.")
 
 		cfg := etcd.Config{
-			Endpoints: []string{"http://192.168.99.100:2379"},
+			Endpoints: strings.Split(*etcdEndpoints, ","),
 			Transport: etcd.DefaultTransport,
 			// set timeout per request to fail fast when the target endpoint is unavailable
 			HeaderTimeoutPerRequest: 3 * time.Second,
@@ -58,7 +72,7 @@ func main() {
 		if *daemon {
 			done := make(chan bool, 1)
 			// go listenForEvents(done, ctx, dockerCli, etcdCli)
-			go polling(2*time.Second, done, ctx, dockerCli, etcdCli)
+			go polling(time.Duration(*pollingInterval)*time.Second, done, ctx, dockerCli, etcdCli)
 			<-done
 		} else {
 			updateConfig(ctx, dockerCli, etcdCli)
@@ -152,42 +166,56 @@ func listenForEvents(done chan<- bool, ctx context.Context, dockerCli *client.Cl
 
 func updateConfig(ctx context.Context, dockerCli *client.Client, etcdCli etcd.KeysAPI) {
 
-	filters := filters.NewArgs()
-	// filters.Add("label", "com.docker.compose.project=hae")
-
-	containers, err := dockerCli.ContainerList(ctx, types.ContainerListOptions{Filter: filters})
+	containers, err := utils.GetContainersList(ctx, dockerCli)
 	if err != nil {
 		log.Println("Unable to fetch containers: ", err)
 		return
 	}
 
-	// clear content
-	// etcdCli.Delete(ctx, "/subproxies", &etcd.DeleteOptions{Recursive: true})
-	// if err != nil {
-	// 	log.Println("Unable to update etcd: ", err)
-	// }
-
-	fmt.Println("#### ectd ####")
-	resp, err := etcdCli.Get(ctx, "/subproxies", nil)
-	if resp != nil && resp.Node != nil {
-		for _, subproxy := range resp.Node.Nodes {
-			fmt.Println(subproxy.Key)
-		}
-		fmt.Println("##############")
-	}
+	// store the configured containers to clean remaining containers found in etcd
+	configuredContainers := map[string]bool{}
 
 	for _, container := range containers {
-		if hosts, ok := container.Labels["proxy.domain_names"]; ok {
+		if domainNames, ok := container.Labels["proxy.domain_names"]; ok {
 
-			log.Println(container.Names[0], " domain_names: ", hosts)
+			name := container.Names[0]
 
-			_, err = etcdCli.Set(ctx, "/subproxies"+container.Names[0]+"/hosts", hosts, nil)
-			if err != nil {
-				log.Println("Unable to update etcd: ", err)
+			// generate JSON config
+			config := containerConfig{DomainNames: domainNames}
+			jsonData, jsonErr := json.Marshal(config)
+			if jsonErr != nil {
+				log.Println("Unable to update etcd (json encoding): ", jsonErr)
 				return
+			}
+
+			// save JSON into etcd
+			_, err = etcdCli.Set(ctx, "/subproxies"+name, string(jsonData), nil)
+			if err != nil {
+				log.Println("Unable to update etcd (etcd set): ", err)
+				return
+			}
+
+			// store the configured container
+			configuredContainers[name] = true
+		}
+	}
+
+	// clean deleted containers
+	resp, err := etcdCli.Get(ctx, "/subproxies", nil)
+	if err != nil {
+		log.Println("Unable to clean etcd (etcd get): ", err)
+		return
+	}
+	if resp != nil && resp.Node != nil {
+		for _, subproxy := range resp.Node.Nodes {
+			items := strings.Split(subproxy.Key, "/")
+			name := items[len(items)-1]
+
+			if _, ok := configuredContainers["/"+name]; !ok {
+				etcdCli.Delete(ctx, subproxy.Key, nil)
+				fmt.Println("Removing", name)
 			}
 		}
 	}
 
-	// log.Println("etcd updated.")
 }
