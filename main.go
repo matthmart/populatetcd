@@ -29,6 +29,8 @@ func main() {
 
 	app := cli.App("populatetcd", "Update etcd according to containers labels")
 
+	app.Version("version", "Populatetcd 1 (build 2)")
+
 	app.Spec = "[-d|--daemon [--interval]] --etcd"
 
 	daemon := app.BoolOpt("d daemon", false, "Run populatetcd in daemon mode, listening docker events")
