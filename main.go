@@ -21,6 +21,7 @@ import (
 )
 
 type containerConfig struct {
+	Container   string `json:"container"`
 	DomainNames string `json:"domain_names"`
 }
 
@@ -178,10 +179,15 @@ func updateConfig(ctx context.Context, dockerCli *client.Client, etcdCli etcd.Ke
 	for _, container := range containers {
 		if domainNames, ok := container.Labels["proxy.domain_names"]; ok {
 
+			// container name
 			name := container.Names[0]
+			cleanName := strings.Replace(name, "/", "", -1)
 
 			// generate JSON config
-			config := containerConfig{DomainNames: domainNames}
+			config := containerConfig{
+				Container:   cleanName,
+				DomainNames: domainNames,
+			}
 			jsonData, jsonErr := json.Marshal(config)
 			if jsonErr != nil {
 				log.Println("Unable to update etcd (json encoding): ", jsonErr)
