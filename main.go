@@ -29,7 +29,7 @@ func main() {
 
 	app := cli.App("populatetcd", "Update etcd according to containers labels")
 
-	app.Version("version", "Populatetcd 1 (build 2)")
+	app.Version("version", "Populatetcd 2 (build 3)")
 
 	app.Spec = "[-d|--daemon [--interval]] --etcd"
 
