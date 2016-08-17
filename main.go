@@ -47,15 +47,28 @@ func main() {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		dockerCli, err := client.NewEnvClient()
-		if err != nil {
-			log.Fatal(err)
+		var dockerCli *client.Client
+		for dockerCli == nil {
+			newClient, err := client.NewEnvClient()
+			if err != nil {
+				log.Println("Unable to get a Docker API client: ", err)
+				log.Println("Retrying in 5 seconds...")
+				time.Sleep(time.Second * 5)
+			} else {
+				dockerCli = newClient
+			}
 		}
 
 		// check if the Docker API is ok
-		_, err = dockerCli.ServerVersion(ctx)
-		if err != nil {
-			log.Fatal(err)
+		for {
+			_, err := dockerCli.ServerVersion(ctx)
+			if err != nil {
+				log.Println("Unable to connect to Docker: ", err)
+				log.Println("Retrying in 5 seconds...")
+				time.Sleep(time.Second * 5)
+			} else {
+				break
+			}
 		}
 
 		log.Println("Docker API connection OK.")
